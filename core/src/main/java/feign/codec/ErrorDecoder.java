@@ -1,11 +1,11 @@
 /**
  * Copyright 2012-2019 The Feign Authors
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
- *
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -13,20 +13,21 @@
  */
 package feign.codec;
 
+import feign.FeignException;
+import feign.Response;
+import feign.RetryableException;
+
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
-import feign.FeignException;
-import feign.Response;
-import feign.RetryableException;
+
 import static feign.FeignException.errorStatus;
 import static feign.Util.RETRY_AFTER;
 import static feign.Util.checkNotNull;
 import static java.util.Locale.US;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
@@ -69,91 +70,91 @@ import static java.util.concurrent.TimeUnit.SECONDS;
  */
 public interface ErrorDecoder {
 
-  /**
-   * Implement this method in order to decode an HTTP {@link Response} when
-   * {@link Response#status()} is not in the 2xx range. Please raise application-specific exceptions
-   * where possible. If your exception is retryable, wrap or subclass {@link RetryableException}
-   *
-   * @param methodKey {@link feign.Feign#configKey} of the java method that invoked the request. ex.
-   *        {@code IAM#getUser()}
-   * @param response HTTP response where {@link Response#status() status} is greater than or equal
-   *        to {@code 300}.
-   * @return Exception IOException, if there was a network error reading the response or an
-   *         application-specific exception decoded by the implementation. If the throwable is
-   *         retryable, it should be wrapped, or a subtype of {@link RetryableException}
-   */
-  public Exception decode(String methodKey, Response response);
+    /**
+     * Implement this method in order to decode an HTTP {@link Response} when
+     * {@link Response#status()} is not in the 2xx range. Please raise application-specific exceptions
+     * where possible. If your exception is retryable, wrap or subclass {@link RetryableException}
+     *
+     * @param methodKey {@link feign.Feign#configKey} of the java method that invoked the request. ex.
+     *        {@code IAM#getUser()}
+     * @param response HTTP response where {@link Response#status() status} is greater than or equal
+     *        to {@code 300}.
+     * @return Exception IOException, if there was a network error reading the response or an
+     *         application-specific exception decoded by the implementation. If the throwable is
+     *         retryable, it should be wrapped, or a subtype of {@link RetryableException}
+     */
+    public Exception decode(String methodKey, Response response);
 
-  public static class Default implements ErrorDecoder {
+    public static class Default implements ErrorDecoder {
 
-    private final RetryAfterDecoder retryAfterDecoder = new RetryAfterDecoder();
+        private final RetryAfterDecoder retryAfterDecoder = new RetryAfterDecoder();
 
-    @Override
-    public Exception decode(String methodKey, Response response) {
-      FeignException exception = errorStatus(methodKey, response);
-      Date retryAfter = retryAfterDecoder.apply(firstOrNull(response.headers(), RETRY_AFTER));
-      if (retryAfter != null) {
-        return new RetryableException(
-            response.status(),
-            exception.getMessage(),
-            response.request().httpMethod(),
-            exception,
-            retryAfter);
-      }
-      return exception;
-    }
+        @Override
+        public Exception decode(String methodKey, Response response) {
+            FeignException exception = errorStatus(methodKey, response);
+            Date retryAfter = retryAfterDecoder.apply(firstOrNull(response.headers(), RETRY_AFTER));
+            if (retryAfter != null) {
+                return new RetryableException(
+                        response.status(),
+                        exception.getMessage(),
+                        response.request().httpMethod(),
+                        exception,
+                        retryAfter);
+            }
+            return exception;
+        }
 
-    private <T> T firstOrNull(Map<String, Collection<T>> map, String key) {
-      if (map.containsKey(key) && !map.get(key).isEmpty()) {
-        return map.get(key).iterator().next();
-      }
-      return null;
-    }
-  }
-
-  /**
-   * Decodes a {@link feign.Util#RETRY_AFTER} header into an absolute date, if possible. <br>
-   * See <a href="https://tools.ietf.org/html/rfc2616#section-14.37">Retry-After format</a>
-   */
-  static class RetryAfterDecoder {
-
-    static final DateFormat RFC822_FORMAT =
-        new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss 'GMT'", US);
-    private final DateFormat rfc822Format;
-
-    RetryAfterDecoder() {
-      this(RFC822_FORMAT);
-    }
-
-    RetryAfterDecoder(DateFormat rfc822Format) {
-      this.rfc822Format = checkNotNull(rfc822Format, "rfc822Format");
-    }
-
-    protected long currentTimeMillis() {
-      return System.currentTimeMillis();
+        private <T> T firstOrNull(Map<String, Collection<T>> map, String key) {
+            if (map.containsKey(key) && !map.get(key).isEmpty()) {
+                return map.get(key).iterator().next();
+            }
+            return null;
+        }
     }
 
     /**
-     * returns a date that corresponds to the first time a request can be retried.
-     *
-     * @param retryAfter String in
-     *        <a href="https://tools.ietf.org/html/rfc2616#section-14.37" >Retry-After format</a>
+     * Decodes a {@link feign.Util#RETRY_AFTER} header into an absolute date, if possible. <br>
+     * See <a href="https://tools.ietf.org/html/rfc2616#section-14.37">Retry-After format</a>
      */
-    public Date apply(String retryAfter) {
-      if (retryAfter == null) {
-        return null;
-      }
-      if (retryAfter.matches("^[0-9]+$")) {
-        long deltaMillis = SECONDS.toMillis(Long.parseLong(retryAfter));
-        return new Date(currentTimeMillis() + deltaMillis);
-      }
-      synchronized (rfc822Format) {
-        try {
-          return rfc822Format.parse(retryAfter);
-        } catch (ParseException ignored) {
-          return null;
+    static class RetryAfterDecoder {
+
+        static final DateFormat RFC822_FORMAT =
+                new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss 'GMT'", US);
+        private final DateFormat rfc822Format;
+
+        RetryAfterDecoder() {
+            this(RFC822_FORMAT);
         }
-      }
+
+        RetryAfterDecoder(DateFormat rfc822Format) {
+            this.rfc822Format = checkNotNull(rfc822Format, "rfc822Format");
+        }
+
+        protected long currentTimeMillis() {
+            return System.currentTimeMillis();
+        }
+
+        /**
+         * returns a date that corresponds to the first time a request can be retried.
+         *
+         * @param retryAfter String in
+         *        <a href="https://tools.ietf.org/html/rfc2616#section-14.37" >Retry-After format</a>
+         */
+        public Date apply(String retryAfter) {
+            if (retryAfter == null) {
+                return null;
+            }
+            if (retryAfter.matches("^[0-9]+$")) {
+                long deltaMillis = SECONDS.toMillis(Long.parseLong(retryAfter));
+                return new Date(currentTimeMillis() + deltaMillis);
+            }
+            synchronized (rfc822Format) {
+                try {
+                    return rfc822Format.parse(retryAfter);
+                } catch (ParseException ignored) {
+                    return null;
+                }
+            }
+        }
     }
-  }
 }

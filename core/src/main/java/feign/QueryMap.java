@@ -1,11 +1,11 @@
 /**
  * Copyright 2012-2019 The Feign Authors
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
- *
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -16,6 +16,7 @@ package feign;
 import java.lang.annotation.Retention;
 import java.util.List;
 import java.util.Map;
+
 import static java.lang.annotation.ElementType.PARAMETER;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
@@ -26,7 +27,7 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  * precedence over any previously specified query parameters. It is not necessary to reference the
  * parameter map as a variable. <br>
  * <br>
- * 
+ *
  * <pre>
  * ...
  * &#64;RequestLine("POST /servers")
@@ -37,7 +38,7 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  * void get(&#64;Param("serverId") String serverId, &#64;Param("count") int count, &#64;QueryMap Map<String, Object>);
  * ...
  * </pre>
- * 
+ *
  * The annotated parameter must be an instance of {@link Map}, and the keys must be Strings. The
  * query value of a key will be the value of its toString method, except in the following cases:
  * <br>
@@ -56,10 +57,10 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 @Retention(RUNTIME)
 @java.lang.annotation.Target(PARAMETER)
 public @interface QueryMap {
-  /**
-   * Specifies whether parameter names and values are already encoded.
-   *
-   * @see Param#encoded
-   */
-  boolean encoded() default false;
+    /**
+     * Specifies whether parameter names and values are already encoded.
+     *
+     * @see Param#encoded
+     */
+    boolean encoded() default false;
 }
