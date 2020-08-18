@@ -16,6 +16,7 @@ package feign;
 import feign.Logger.NoOpLogger;
 import feign.ReflectiveFeign.ParseHandlersByName;
 import feign.Request.Options;
+import feign.SynchronousMethodHandler.Factory;
 import feign.Target.HardCodedTarget;
 import feign.codec.Decoder;
 import feign.codec.Encoder;
@@ -96,8 +97,7 @@ public abstract class Feign {
 
     public static class Builder {
 
-        private final List<RequestInterceptor> requestInterceptors =
-                new ArrayList<RequestInterceptor>();
+        private final List<RequestInterceptor> requestInterceptors = new ArrayList<RequestInterceptor>();
         private Logger.Level logLevel = Logger.Level.NONE;
         private Contract contract = new Contract.Default();
         private Client client = new Client.Default(null, null);
@@ -108,8 +108,7 @@ public abstract class Feign {
         private QueryMapEncoder queryMapEncoder = new QueryMapEncoder.Default();
         private ErrorDecoder errorDecoder = new ErrorDecoder.Default();
         private Options options = new Options();
-        private InvocationHandlerFactory invocationHandlerFactory =
-                new InvocationHandlerFactory.Default();
+        private InvocationHandlerFactory invocationHandlerFactory = new InvocationHandlerFactory.Default();
         private boolean decode404;
         private boolean closeAfterDecode = true;
         private ExceptionPropagationPolicy propagationPolicy = NONE;
@@ -249,17 +248,18 @@ public abstract class Feign {
             return target(new HardCodedTarget<T>(apiType, url));
         }
 
+        /**
+         * 创建实例
+         * @see ReflectiveFeign#newInstance(Target)
+         */
         public <T> T target(Target<T> target) {
             return build().newInstance(target);
         }
 
+        // 创建 feign
         public Feign build() {
-            SynchronousMethodHandler.Factory synchronousMethodHandlerFactory =
-                    new SynchronousMethodHandler.Factory(client, retryer, requestInterceptors, logger,
-                            logLevel, decode404, closeAfterDecode, propagationPolicy);
-            ParseHandlersByName handlersByName =
-                    new ParseHandlersByName(contract, options, encoder, decoder, queryMapEncoder,
-                            errorDecoder, synchronousMethodHandlerFactory);
+            Factory synchronousMethodHandlerFactory = new Factory(client, retryer, requestInterceptors, logger, logLevel, decode404, closeAfterDecode, propagationPolicy);
+            ParseHandlersByName handlersByName = new ParseHandlersByName(contract, options, encoder, decoder, queryMapEncoder, errorDecoder, synchronousMethodHandlerFactory);
             return new ReflectiveFeign(handlersByName, invocationHandlerFactory, queryMapEncoder);
         }
     }

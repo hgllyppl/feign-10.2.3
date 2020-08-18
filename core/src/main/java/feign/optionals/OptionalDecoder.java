@@ -31,8 +31,11 @@ public final class OptionalDecoder implements Decoder {
         this.delegate = delegate;
     }
 
+    // 反序列化结果
     @Override
     public Object decode(Response response, Type type) throws IOException {
+        // 如果 type 非 Optional，则继续 decode
+        // 反之则取出 Optional<T> 的泛型参数 T 并继续 decode
         if (!isOptional(type)) {
             return delegate.decode(response, type);
         }

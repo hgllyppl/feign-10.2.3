@@ -15,6 +15,7 @@ package feign;
 
 import feign.InvocationHandlerFactory.MethodHandler;
 import feign.Request.Options;
+import feign.Target.HardCodedTarget;
 import feign.codec.DecodeException;
 import feign.codec.Decoder;
 import feign.codec.ErrorDecoder;
@@ -44,7 +45,9 @@ final class SynchronousMethodHandler implements MethodHandler {
     private final Options options;
     private final Decoder decoder;
     private final ErrorDecoder errorDecoder;
+    // 默认 false
     private final boolean decode404;
+    // 默认 true
     private final boolean closeAfterDecode;
     private final ExceptionPropagationPolicy propagationPolicy;
 
@@ -71,14 +74,25 @@ final class SynchronousMethodHandler implements MethodHandler {
         this.propagationPolicy = propagationPolicy;
     }
 
+    // 代理方法调用
     @Override
     public Object invoke(Object[] argv) throws Throwable {
+        /**
+         * 创建 RequestTemplate
+         * @see ReflectiveFeign.BuildTemplateByResolvingArgs#create(Object[])
+         */
         RequestTemplate template = buildTemplateFromArgs.create(argv);
         Retryer retryer = this.retryer.clone();
         while (true) {
             try {
+                // 执行请求并处理结果
                 return executeAndDecode(template);
             } catch (RetryableException e) {
+                /**
+                 * 重试逻辑
+                 * @see Retryer.Default#continueOrPropagate(RetryableException)
+                 * @see retryer.NEVER_RETRY
+                 */
                 try {
                     retryer.continueOrPropagate(e);
                 } catch (RetryableException th) {
@@ -97,7 +111,9 @@ final class SynchronousMethodHandler implements MethodHandler {
         }
     }
 
+    // 执行请求并处理结果
     Object executeAndDecode(RequestTemplate template) throws Throwable {
+        // 创建 request
         Request request = targetRequest(template);
 
         if (logLevel != Logger.Level.NONE) {
@@ -107,6 +123,10 @@ final class SynchronousMethodHandler implements MethodHandler {
         Response response;
         long start = System.nanoTime();
         try {
+            /**
+             * 执行请求
+             * @see org.springframework.cloud.openfeign.ribbon.LoadBalancerFeignClient#execute
+             */
             response = client.execute(request, options);
         } catch (IOException e) {
             if (logLevel != Logger.Level.NONE) {
@@ -119,8 +139,7 @@ final class SynchronousMethodHandler implements MethodHandler {
         boolean shouldClose = true;
         try {
             if (logLevel != Logger.Level.NONE) {
-                response =
-                        logger.logAndRebufferResponse(metadata.configKey(), logLevel, response, elapsedTime);
+                response = logger.logAndRebufferResponse(metadata.configKey(), logLevel, response, elapsedTime);
             }
             if (Response.class == metadata.returnType()) {
                 if (response.body() == null) {
@@ -135,6 +154,7 @@ final class SynchronousMethodHandler implements MethodHandler {
                 byte[] bodyData = Util.toByteArray(response.body().asInputStream());
                 return response.toBuilder().body(bodyData).build();
             }
+            // 处理结果
             if (response.status() >= 200 && response.status() < 300) {
                 if (void.class == metadata.returnType()) {
                     return null;
@@ -144,6 +164,7 @@ final class SynchronousMethodHandler implements MethodHandler {
                     return result;
                 }
             } else if (decode404 && response.status() == 404 && void.class != metadata.returnType()) {
+                // 处理 404
                 Object result = decode(response);
                 shouldClose = closeAfterDecode;
                 return result;
@@ -156,6 +177,7 @@ final class SynchronousMethodHandler implements MethodHandler {
             }
             throw errorReading(request, response, e);
         } finally {
+            // 关闭资源
             if (shouldClose) {
                 ensureClosed(response.body());
             }
@@ -166,13 +188,18 @@ final class SynchronousMethodHandler implements MethodHandler {
         return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
     }
 
+    // 应用拦截器并创建 Request
     Request targetRequest(RequestTemplate template) {
         for (RequestInterceptor interceptor : requestInterceptors) {
             interceptor.apply(template);
         }
+        /**
+         * @see HardCodedTarget#apply(RequestTemplate)
+         */
         return target.apply(template);
     }
 
+    // 反序列化结果
     Object decode(Response response) throws Throwable {
         try {
             return decoder.decode(response, metadata.returnType());

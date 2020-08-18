@@ -49,15 +49,15 @@ public interface Contract {
 
         @Override
         public List<MethodMetadata> parseAndValidatateMetadata(Class<?> targetType) {
-            checkState(targetType.getTypeParameters().length == 0, "Parameterized types unsupported: %s",
-                    targetType.getSimpleName());
-            checkState(targetType.getInterfaces().length <= 1, "Only single inheritance supported: %s",
-                    targetType.getSimpleName());
+            // 不支持泛型参数列表、多接口继承
+            checkState(targetType.getTypeParameters().length == 0, "Parameterized types unsupported: %s", targetType.getSimpleName());
+            checkState(targetType.getInterfaces().length <= 1, "Only single inheritance supported: %s", targetType.getSimpleName());
             if (targetType.getInterfaces().length == 1) {
                 checkState(targetType.getInterfaces()[0].getInterfaces().length == 0,
                         "Only single-level inheritance supported: %s",
                         targetType.getSimpleName());
             }
+            // 构建 MethodMetadata
             Map<String, MethodMetadata> result = new LinkedHashMap<String, MethodMetadata>();
             for (Method method : targetType.getMethods()) {
                 if (method.getDeclaringClass() == Object.class ||
@@ -66,73 +66,64 @@ public interface Contract {
                     continue;
                 }
                 MethodMetadata metadata = parseAndValidateMetadata(targetType, method);
-                checkState(!result.containsKey(metadata.configKey()), "Overrides unsupported: %s",
-                        metadata.configKey());
+                checkState(!result.containsKey(metadata.configKey()), "Overrides unsupported: %s", metadata.configKey());
                 result.put(metadata.configKey(), metadata);
             }
             return new ArrayList<>(result.values());
         }
 
-        /**
-         * @deprecated use {@link #parseAndValidateMetadata(Class, Method)} instead.
-         */
         @Deprecated
         public MethodMetadata parseAndValidatateMetadata(Method method) {
             return parseAndValidateMetadata(method.getDeclaringClass(), method);
         }
 
-        /**
-         * Called indirectly by {@link #parseAndValidatateMetadata(Class)}.
-         */
+        // Method -> MethodMetadata
         protected MethodMetadata parseAndValidateMetadata(Class<?> targetType, Method method) {
             MethodMetadata data = new MethodMetadata();
+            // 设置目标类型、函数名字
             data.returnType(Types.resolve(targetType, targetType, method.getGenericReturnType()));
             data.configKey(Feign.configKey(targetType, method));
-
+            // 处理目标类和超类注解
             if (targetType.getInterfaces().length == 1) {
                 processAnnotationOnClass(data, targetType.getInterfaces()[0]);
             }
             processAnnotationOnClass(data, targetType);
-
-
+            // 处理目标函数注解
             for (Annotation methodAnnotation : method.getAnnotations()) {
                 processAnnotationOnMethod(data, methodAnnotation, method);
             }
-            checkState(data.template().method() != null,
-                    "Method %s not annotated with HTTP method type (ex. GET, POST)",
-                    method.getName());
+            checkState(data.template().method() != null, "Method %s not annotated with HTTP method type (ex. GET, POST)", method.getName());
             Class<?>[] parameterTypes = method.getParameterTypes();
             Type[] genericParameterTypes = method.getGenericParameterTypes();
-
+            // 处理目标函数的参数注解
             Annotation[][] parameterAnnotations = method.getParameterAnnotations();
             int count = parameterAnnotations.length;
             for (int i = 0; i < count; i++) {
                 boolean isHttpAnnotation = false;
                 if (parameterAnnotations[i] != null) {
+                    // 处理参数注解
                     isHttpAnnotation = processAnnotationsOnParameter(data, parameterAnnotations[i], i);
                 }
                 if (parameterTypes[i] == URI.class) {
                     data.urlIndex(i);
                 } else if (!isHttpAnnotation) {
-                    checkState(data.formParams().isEmpty(),
-                            "Body parameters cannot be used with form parameters.");
+                    // 如果 !isHttpAnnotation，则不允许有 formParams，且 body 只允许一个参数存在
+                    checkState(data.formParams().isEmpty(), "Body parameters cannot be used with form parameters.");
                     checkState(data.bodyIndex() == null, "Method has too many Body parameters: %s", method);
                     data.bodyIndex(i);
                     data.bodyType(Types.resolve(targetType, targetType, genericParameterTypes[i]));
                 }
             }
-
+            // 检查 header
             if (data.headerMapIndex() != null) {
-                checkMapString("HeaderMap", parameterTypes[data.headerMapIndex()],
-                        genericParameterTypes[data.headerMapIndex()]);
+                checkMapString("HeaderMap", parameterTypes[data.headerMapIndex()], genericParameterTypes[data.headerMapIndex()]);
             }
-
+            // 检查 query
             if (data.queryMapIndex() != null) {
                 if (Map.class.isAssignableFrom(parameterTypes[data.queryMapIndex()])) {
                     checkMapKeys("QueryMap", genericParameterTypes[data.queryMapIndex()]);
                 }
             }
-
             return data;
         }
 
@@ -206,8 +197,7 @@ public interface Contract {
          * links a parameter name to its index in the method signature.
          */
         protected void nameParam(MethodMetadata data, String name, int i) {
-            Collection<String> names =
-                    data.indexToName().containsKey(i) ? data.indexToName().get(i) : new ArrayList<String>();
+            Collection<String> names = data.indexToName().containsKey(i) ? data.indexToName().get(i) : new ArrayList<String>();
             names.add(name);
             data.indexToName().put(i, names);
         }

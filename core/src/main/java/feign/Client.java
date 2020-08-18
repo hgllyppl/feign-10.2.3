@@ -64,6 +64,7 @@ public interface Client {
             this.hostnameVerifier = hostnameVerifier;
         }
 
+        // 默认使用 HttpURLConnection 执行请求
         @Override
         public Response execute(Request request, Options options) throws IOException {
             HttpURLConnection connection = convertAndSend(request, options);
@@ -71,8 +72,8 @@ public interface Client {
         }
 
         HttpURLConnection convertAndSend(Request request, Options options) throws IOException {
-            final HttpURLConnection connection =
-                    (HttpURLConnection) new URL(request.url()).openConnection();
+            // 创建 HttpURLConnection
+            final HttpURLConnection connection = (HttpURLConnection) new URL(request.url()).openConnection();
             if (connection instanceof HttpsURLConnection) {
                 HttpsURLConnection sslCon = (HttpsURLConnection) connection;
                 if (sslContextFactory != null) {
@@ -82,18 +83,18 @@ public interface Client {
                     sslCon.setHostnameVerifier(hostnameVerifier);
                 }
             }
+            // 设置超时时间
             connection.setConnectTimeout(options.connectTimeoutMillis());
             connection.setReadTimeout(options.readTimeoutMillis());
             connection.setAllowUserInteraction(false);
             connection.setInstanceFollowRedirects(options.isFollowRedirects());
+            // 设置请求方法
             connection.setRequestMethod(request.httpMethod().name());
-
+            // 是否压缩
             Collection<String> contentEncodingValues = request.headers().get(CONTENT_ENCODING);
-            boolean gzipEncodedRequest =
-                    contentEncodingValues != null && contentEncodingValues.contains(ENCODING_GZIP);
-            boolean deflateEncodedRequest =
-                    contentEncodingValues != null && contentEncodingValues.contains(ENCODING_DEFLATE);
-
+            boolean gzipEncodedRequest = contentEncodingValues != null && contentEncodingValues.contains(ENCODING_GZIP);
+            boolean deflateEncodedRequest = contentEncodingValues != null && contentEncodingValues.contains(ENCODING_DEFLATE);
+            // 设置 header
             boolean hasAcceptHeader = false;
             Integer contentLength = null;
             for (String field : request.headers().keySet()) {
@@ -111,11 +112,11 @@ public interface Client {
                     }
                 }
             }
-            // Some servers choke on the default accept string.
+            // 添加默认的 accept
             if (!hasAcceptHeader) {
                 connection.addRequestProperty("Accept", "*/*");
             }
-
+            // 带压缩的输出 body
             if (request.requestBody().asBytes() != null) {
                 if (contentLength != null) {
                     connection.setFixedLengthStreamingMode(contentLength);
@@ -142,14 +143,14 @@ public interface Client {
         }
 
         Response convertResponse(HttpURLConnection connection, Request request) throws IOException {
+            // 获取响应信息
             int status = connection.getResponseCode();
             String reason = connection.getResponseMessage();
 
             if (status < 0) {
-                throw new IOException(format("Invalid status(%s) executing %s %s", status,
-                        connection.getRequestMethod(), connection.getURL()));
+                throw new IOException(format("Invalid status(%s) executing %s %s", status, connection.getRequestMethod(), connection.getURL()));
             }
-
+            // 获取 header
             Map<String, Collection<String>> headers = new LinkedHashMap<String, Collection<String>>();
             for (Map.Entry<String, List<String>> field : connection.getHeaderFields().entrySet()) {
                 // response message
@@ -157,7 +158,7 @@ public interface Client {
                     headers.put(field.getKey(), field.getValue());
                 }
             }
-
+            // 获取响应长度
             Integer length = connection.getContentLength();
             if (length == -1) {
                 length = null;
@@ -168,6 +169,7 @@ public interface Client {
             } else {
                 stream = connection.getInputStream();
             }
+            // 构造 Response
             return Response.builder()
                     .status(status)
                     .reason(reason)

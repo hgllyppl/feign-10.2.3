@@ -94,7 +94,7 @@ public interface Target<T> {
             return url;
         }
 
-        /* no authentication or other special activity. just insert the url. */
+        // RequestTemplate -> Request
         @Override
         public Request apply(RequestTemplate input) {
             if (input.url().indexOf("http") != 0) {
